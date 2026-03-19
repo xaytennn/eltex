@@ -297,7 +297,7 @@ int main(void){
             break;    
             case 6:
                 printf("Вы вышли из программы! \n");
-                return 0;                
+                return 0;     
             break; 
         }
     }while(n != 6);
