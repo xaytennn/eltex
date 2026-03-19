@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #define N 100
+
 #define MAX_NAME 10
 #define MAX_SECOND_NAME 10
 #define MAX_TEL 10
