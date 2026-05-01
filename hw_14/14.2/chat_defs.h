@@ -18,7 +18,6 @@
 #define SEM_SERVER_PATH "/server_semaphore_name"
 #define SEM_CLIENT_PATH "/client_semaphore_name"
 #define SEM_MUTEX_PATH "/mutex_semaphore_name"
-#define SEM_NEW_MSG_PATH "/new_msg_semaphore_name"
 #define JOIN_CLIENT 1
 #define LEFT_CLIENT 2
 #define TEXT_CLIENT 3
@@ -35,8 +34,9 @@ typedef struct {
 
 typedef struct {
     int hist_index;
-    int hist_count;
+    int hist_all_message_counter;
     int client_count;
+    int need_read[MAX_CLIENTS];
     chat_msg_t history[MAX_HISTORY];
     chat_msg_t new_msg;
     char clients[MAX_CLIENTS][MAX_NAME];

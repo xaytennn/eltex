@@ -4,19 +4,22 @@
 
 // Сохраняем историю сообщений
 void add_chat_history(chat_t *chat, chat_msg_t *msg) {
-    chat->history[chat->hist_index] = *msg;
-    chat->hist_index = (chat->hist_index + 1) % MAX_HISTORY;
-    if (chat->hist_count < MAX_HISTORY) chat->hist_count++;
+    if(chat->hist_index == MAX_HISTORY){
+        chat->hist_index = (chat->hist_index) % MAX_HISTORY;
+    }
+    chat->history[chat->hist_index++] = *msg;
+    if(chat->hist_all_message_counter < MAX_HISTORY){
+        chat->hist_all_message_counter++;
+    }
 }
 
 // Очищаем ресурсы, если поймали сигнал
 void cleanup_server(int sig) {
-    printf("Got a signal. Safe exit\n");
+    printf("\nGot a signal. Safe exit\n");
     shm_unlink(SHM_PATH);
     sem_unlink(SEM_SERVER_PATH);
     sem_unlink(SEM_CLIENT_PATH);
     sem_unlink(SEM_MUTEX_PATH);
-    sem_unlink(SEM_NEW_MSG_PATH);
     exit(EXIT_SUCCESS);
 }
 
@@ -33,26 +36,20 @@ int main(void){
     sem_unlink(SEM_SERVER_PATH);
     sem_unlink(SEM_CLIENT_PATH);
     sem_unlink(SEM_MUTEX_PATH);
-    sem_unlink(SEM_NEW_MSG_PATH);
 
     // Создаем семафоры
-    sem_t *server_semaphore = sem_open(SEM_SERVER_PATH, O_CREAT | O_EXCL, 0666, 1);
+    sem_t *server_semaphore = sem_open(SEM_SERVER_PATH, O_CREAT | O_EXCL, 0666, 0);
     if(server_semaphore == SEM_FAILED){
         perror("sem_open problem");
         exit(EXIT_FAILURE);
     }
-    sem_t *client_semaphore = sem_open(SEM_CLIENT_PATH, O_CREAT | O_EXCL, 0666, 0);
+    sem_t *client_semaphore = sem_open(SEM_CLIENT_PATH, O_CREAT | O_EXCL, 0666, 1);
     if(client_semaphore == SEM_FAILED){
         perror("sem_open problem");
         exit(EXIT_FAILURE);
     }
     sem_t *mutex = sem_open(SEM_MUTEX_PATH, O_CREAT | O_EXCL, 0666, 1);
     if(mutex == SEM_FAILED){
-        perror("sem_open problem");
-        exit(EXIT_FAILURE);
-    }
-    sem_t *new_msg_sem = sem_open(SEM_NEW_MSG_PATH, O_CREAT | O_EXCL, 0666, 0);
-    if(new_msg_sem == SEM_FAILED){
         perror("sem_open problem");
         exit(EXIT_FAILURE);
     }
@@ -88,8 +85,6 @@ int main(void){
 
             // Клиент подключается
             case(JOIN_CLIENT):
-
-                sys_msg.type = JOIN_CLIENT;
                 strcpy(sys_msg.sender, "SERVER");
                 snprintf(sys_msg.text, MAX_MSG, "%s joined the chat", msg_copy.sender);
                 sem_wait(mutex);
@@ -101,12 +96,11 @@ int main(void){
 
             // Клиент отключается
             case(LEFT_CLIENT):
-                sys_msg.type = LEFT_CLIENT;
                 strcpy(sys_msg.sender, "SERVER");
                 snprintf(sys_msg.text, MAX_MSG, "%s left the chat", msg_copy.sender);
                 sem_wait(mutex);
                 add_chat_history(chat, &sys_msg);
-
+                
                 // Удаление клиента из списка со сдвигом
                 for (int i = 0; i < chat->client_count; i++) {
                     if (strcmp(chat->clients[i], msg_copy.sender) == 0) {
@@ -114,7 +108,6 @@ int main(void){
                             strcpy(chat->clients[j], chat->clients[j+1]);
                         }
                         chat->client_count--;
-                        break;
                     }
                 }
                 sem_post(mutex);
@@ -126,13 +119,15 @@ int main(void){
                 add_chat_history(chat, &msg_copy);
                 sem_post(mutex);
                 break;
-        }
-        sem_post(client_semaphore);
-
-        // Уведомляем всех о новом сообщении. Аналог broadcast
-        for (int i = 0; i < chat->client_count; i++) {
-            sem_post(new_msg_sem);
-        }
+            }
+            
+            // Уведомляем всех о новом сообщении. Аналог broadcast
+            for (int i = 0; i < chat->client_count; i++) {
+                sem_wait(mutex);
+                chat->need_read[i] = 1;
+                sem_post(mutex);
+            }
+            sem_post(client_semaphore);
     }
 
     // Очищение ресурсов
@@ -141,11 +136,9 @@ int main(void){
     sem_close(server_semaphore);
     sem_close(client_semaphore);
     sem_close(mutex);
-    sem_close(new_msg_sem);
     sem_unlink(SEM_CLIENT_PATH);
     sem_unlink(SEM_SERVER_PATH);
-    sem_unlink(SEM_MUTEX_PATH);
-    sem_unlink(SEM_NEW_MSG_PATH);
+    sem_unlink(SEM_MUTEX_PATH); 
     shm_unlink(SHM_PATH);
     exit(EXIT_SUCCESS);
 }
